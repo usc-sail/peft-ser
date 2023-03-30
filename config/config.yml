@@ -1,8 +1,8 @@
 data_dir:
-  crema_d: /media/data/public-data/SER/crema_d/CREMA-D/
-  iemocap: /media/data/sail-data/iemocap/
-  meld: /media/data/public-data/SER/meld/MELD.Raw/
-  msp-improv: /media/data/sail-data/MSP-IMPROV/MSP-IMPROV/
-  msp-podcast: /media/data/sail-data/MSP-podcast
-  ravdess: /media/data/public-data/SER/Ravdess
-project_dir: /media/data/projects/speech-privacy/trust-ser
+  crema_d: /project/shrikann_35/tiantiaf/ser-data/CREMA-D/
+  iemocap: /project/shrikann_35/tiantiaf/ser-data/iemocap/
+  meld: /project/shrikann_35/tiantiaf/ser-data/MELD.Raw/
+  msp-improv: /project/shrikann_35/tiantiaf/ser-data/MSP-IMPROV/
+  msp-podcast: /project/shrikann_35/tiantiaf/ser-data/MSP-podcast
+  ravdess: /project/shrikann_35/tiantiaf/ser-data/Ravdess
+project_dir: /project/shrikann_35/tiantiaf/effcient-ser

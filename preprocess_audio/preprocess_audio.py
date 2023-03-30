@@ -1,9 +1,10 @@
 import json
+import yaml
 import torch
 import torchaudio
 import numpy as np
 import pandas as pd
-import pickle, pdb, re
+import pickle, pdb, re, argparse
 
 from tqdm import tqdm
 from pathlib import Path
@@ -81,6 +82,6 @@ if __name__ == '__main__':
 
         # Logging the stats for train/dev/test
         logging.info(f'-------------------------------------------------------')
-        logging.info(f'Preprocess audio for {dataset} dataset')
+        logging.info(f'Preprocess audio for {args.dataset} dataset')
         for split in ['train', 'dev', 'test']: logging.info(f'Split {split}: Number of files {len(split_dict[split])}')
         logging.info(f'-------------------------------------------------------')
