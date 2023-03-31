@@ -152,6 +152,11 @@ class WhisperWrapper(nn.Module):
                 "openai/whisper-small",
                 output_hidden_states=True
             )
+        elif args.pretrain_model == "whisper_medium":
+            self.backbone_model = WhisperModel.from_pretrained(
+                "openai/whisper-medium",
+                output_hidden_states=True
+            )
         self.embed_positions = copy.deepcopy(self.backbone_model.encoder.embed_positions.weight)
         state_dict = self.backbone_model.state_dict()
         # 2. Read the model config
