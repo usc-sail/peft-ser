@@ -13,7 +13,7 @@ from pathlib import Path
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
-from audiomentations import Compose, AddBackgroundNoise, PolarityInversion, AddGaussianSNR, Shift, TimeStretch
+from audiomentations import Compose, AddBackgroundNoise, PolarityInversion, AddGaussianSNR, TimeMask, TimeStretch
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -25,30 +25,6 @@ logging.basicConfig(
     level=logging.INFO, 
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-
-def collate_pretrain_fn(batch):
-    # max of 6s of data
-    max_audio_len = min(max([(b[0].shape[0]//320)*320 for b in batch]), 16000*6)
-    max_frames = min(max([b[0].shape[0]//320-1 for b in batch]), 299)
-    audio1, audio2, attention = list(), list(), list()
-    for idx in range(len(batch)):
-        # append data
-        audio1.append(padding_cropping(batch[idx][0], max_audio_len))
-        audio2.append(padding_cropping(batch[idx][1], max_audio_len))
-        
-        # append len
-        num_frames = len((batch[idx][0])) // 320
-        if num_frames >= max_frames: num_frames = max_frames
-        
-        # append masking
-        attent_mask = torch.zeros(max_frames)
-        attent_mask[num_frames-1:] = -10000
-        attention.append(attent_mask)
-    
-    audio1 = torch.stack(audio1, dim=0)
-    audio2 = torch.stack(audio2, dim=0)
-    attention = torch.stack(attention, dim=0)
-    return audio1, audio2, attention
 
 def collate_fn(batch):
     # max of 6s of data
@@ -108,7 +84,8 @@ class EmotionDatasetGenerator(Dataset):
         self.apply_guassian_noise   = apply_guassian_noise
 
         self.transform = Compose([
-            AddGaussianSNR(min_snr_in_db=35.0, max_snr_in_db=35.0, p=1.0)
+            AddGaussianSNR(min_snr_in_db=10.0, max_snr_in_db=30.0, p=1.0),
+            TimeMask(min_band_part=0.1, max_band_part=0.15, fade=True, p=1.0)
         ])
         
     def __len__(self):
@@ -122,11 +99,10 @@ class EmotionDatasetGenerator(Dataset):
         data = data[0]
         if data.isnan()[0].item(): data = torch.zeros(data.shape)
         if len(data) > self.audio_duration*16000: data = data[:self.audio_duration*16000]
-        if self.apply_guassian_noise:
+        if self.is_train:
             data = data.detach().cpu().numpy()
             data = self.transform(samples=data, sample_rate=16000)
             data = torch.tensor(data)
-
         return data, self.data_list[item][-1]
 
     def _padding_cropping(
@@ -482,7 +458,7 @@ def set_finetune_dataloader(
         dataloader = DataLoader(
             data_generator, 
             batch_size=32, 
-            num_workers=5, 
+            num_workers=2, 
             drop_last=True,
             sampler=datasampler
         )
@@ -490,8 +466,8 @@ def set_finetune_dataloader(
         if is_train:
             dataloader = DataLoader(
                 data_generator, 
-                batch_size=64, 
-                num_workers=5, 
+                batch_size=32, 
+                num_workers=2, 
                 shuffle=is_train,
                 collate_fn=collate_fn,
                 drop_last=is_train
@@ -500,7 +476,7 @@ def set_finetune_dataloader(
             dataloader = DataLoader(
                 data_generator, 
                 batch_size=1, 
-                num_workers=5, 
+                num_workers=2, 
                 shuffle=is_train,
                 drop_last=is_train
             )

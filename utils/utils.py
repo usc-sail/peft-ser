@@ -249,6 +249,43 @@ def parse_finetune_args():
         help="normalization or not",
     )
     
+    parser.add_argument(
+        '--finetune_method', 
+        default='none',
+        type=str, 
+        help='finetune method: adapter, embedding prompt, input prompt'
+    )
+    
+    parser.add_argument(
+        '--adapter_hidden_dim', 
+        default=128,
+        type=int, 
+        help='adapter dimension'
+    )
+    
+    parser.add_argument(
+        '--embedding_prompt_dim', 
+        default=5,
+        type=int, 
+        help='adapter dimension'
+    )
+    
+    parser.add_argument(
+        '--lora_rank', 
+        default=16,
+        type=int, 
+        help='lora rank'
+    )
+    
     args = parser.parse_args()
+    if args.finetune_method == "adapter" or args.finetune_method == "adapter_l":
+        setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}_{args.adapter_hidden_dim}'
+    elif args.finetune_method == "embedding_prompt":
+        setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}_{args.embedding_prompt_dim}'
+    elif args.finetune_method == "lora":
+        setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}_{args.lora_rank}'
+    elif args.finetune_method == "finetune":
+        setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}'
+    args.setting = setting
     return args
 

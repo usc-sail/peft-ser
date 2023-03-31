@@ -24,10 +24,12 @@ sys.path.append(os.path.join(str(Path(os.path.realpath(__file__)).parents[1]), '
 from utils import parse_finetune_args, set_seed, log_epoch_result, log_best_result
 
 # from utils
+from wav2vec import Wav2VecWrapper
+from wavlm_plus import WavLMWrapper
+from whisper import WhisperWrapper
 from evaluation import EvalMetric
-from downstream_models import DNNClassifier, CNNSelfAttention
 from dataloader import load_finetune_audios, set_finetune_dataloader, return_weights
-from pretrained_backbones import Wav2Vec, APC, TERA, WavLM, WhisperTiny, WhisperBase, WhisperSmall
+
 
 # define logging console
 import logging
@@ -70,8 +72,7 @@ def train_epoch(
     optimizer
 ):
     model.train()
-    backbone_model.train()
-    criterion = nn.NLLLoss(weights).to(device)
+    criterion = nn.CrossEntropyLoss(weights).to(device)
     eval_metric = EvalMetric()
     
     logging.info(f'-------------------------------------------------------------------')
@@ -83,14 +84,10 @@ def train_epoch(
         x, y, length = x.to(device), y.to(device), length.to(device)
         
         # forward pass
-        feat, length, mask = backbone_model(x, norm=args.norm, length=length)
-        outputs = model(feat, length, mask)
-        outputs = torch.log_softmax(outputs, dim=1)
+        outputs = model(x, length=length)
                     
         # backward
         loss = criterion(outputs, y)
-
-        # backward
         loss.backward()
         
         # clip gradients
@@ -117,8 +114,7 @@ def validate_epoch(
     split:  str="Validation"
 ):
     model.eval()
-    backbone_model.eval()
-    criterion = nn.NLLLoss(weights).to(device)
+    criterion = nn.CrossEntropyLoss(weights).to(device)
     eval_metric = EvalMetric()
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(dataloader):
@@ -127,10 +123,8 @@ def validate_epoch(
             x, y = x.to(device), y.to(device)
             
             # forward pass
-            feat = backbone_model(x, norm=args.norm)
-            outputs = model(feat)
-            outputs = torch.log_softmax(outputs, dim=1)
-                        
+            outputs = model(x)
+                     
             # backward
             loss = criterion(outputs, y)
             eval_metric.append_classification_results(y, outputs, loss)
@@ -190,7 +184,7 @@ if __name__ == '__main__':
         log_dir = Path(args.log_dir).joinpath(
             args.dataset, 
             args.pretrain_model,
-            f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.downstream_model}_conv{args.conv_layers}_hid{args.hidden_size}_{args.pooling}_{args.finetune}'
+            args.setting
         )
         Path.mkdir(log_dir, parents=True, exist_ok=True)
         
@@ -200,26 +194,14 @@ if __name__ == '__main__':
         # Define the model wrapper
         if args.pretrain_model == "wav2vec2_0":
             # Wav2vec2_0 Wrapper
-            backbone_model = Wav2Vec().to(device)
-        elif args.pretrain_model == "apc":
-            # APC wrapper from superb
-            backbone_model = APC().to(device)
-        elif args.pretrain_model == "tera":
-            # TERA wrapper from superb
-            backbone_model = TERA().to(device)
-        elif args.pretrain_model == "wavlm":
-            # Wavlm wrapper from huggingface
-            backbone_model = WavLM(finetune=args.finetune).to(device)
-        elif args.pretrain_model == "whisper_tiny":
-            # Whisper tiny wrapper from huggingface
-            backbone_model = WhisperTiny(finetune=args.finetune).to(device)
-        elif args.pretrain_model == "whisper_base":
-            # Whisper base wrapper from huggingface
-            backbone_model = WhisperBase().to(device)
-        elif args.pretrain_model == "whisper_small":
-            # Whisper small wrapper from huggingface
-            backbone_model = WhisperSmall().to(device)
-
+            model = Wav2VecWrapper(args).to(device)
+        elif args.pretrain_model == "wavlm_plus":
+            # WavLM Plus Wrapper
+            model = WavLMWrapper(args).to(device)
+        elif args.pretrain_model in ["whisper_tiny", "whisper_base", "whisper_small"]:
+            # Whisper Plus Wrapper
+            model = WhisperWrapper(args).to(device)
+        
         # Define the downstream models
         if args.downstream_model == "cnn":
             # Define the number of class
@@ -227,24 +209,15 @@ if __name__ == '__main__':
             elif args.dataset in ["msp-podcast"]: num_class = 4
             elif args.dataset in ["crema_d"]: num_class = 4
             elif args.dataset in ["ravdess"]: num_class = 7
-
-            # Define the models
-            model = CNNSelfAttention(
-                input_dim=hid_dim_dict[args.pretrain_model], 
-                output_class_num=num_class, 
-                conv_layer=args.conv_layers, 
-                num_enc_layers=num_enc_layers_dict[args.pretrain_model], 
-                pooling_method=args.pooling
-            ).to(device)
         
         # Read trainable params
-        model_parameters = list(filter(lambda p: p.requires_grad, model.parameters())) + list(filter(lambda p: p.requires_grad, backbone_model.parameters()))
+        model_parameters = list(filter(lambda p: p.requires_grad, model.parameters()))
         params = sum([np.prod(p.size()) for p in model_parameters])
-        logging.info(f'Trainable params size: {params/(1024*1024):.2f} M')
+        logging.info(f'Trainable params size: {params/(1e6):.2f} M')
         
         # Define optimizer
         optimizer = torch.optim.Adam(
-            list(filter(lambda p: p.requires_grad, model.parameters())) + list(filter(lambda p: p.requires_grad, backbone_model.parameters())),
+            list(filter(lambda p: p.requires_grad, model.parameters())),
             lr=args.learning_rate, 
             weight_decay=1e-4,
             betas=(0.9, 0.98)
@@ -280,11 +253,6 @@ if __name__ == '__main__':
                 best_test_acc = test_result["acc"]
                 best_epoch = epoch
                 torch.save(model.state_dict(), str(log_dir.joinpath(f'fold_{fold_idx}.pt')))
-
-                if "whisper" in args.pretrain_model:
-                    # Copy back the positional embedding
-                    backbone_model.backbone_model.encoder.embed_positions = backbone_model.backbone_model.encoder.embed_positions.from_pretrained(backbone_model.embed_positions)
-                if args.finetune != "frozen": torch.save(backbone_model.state_dict(), str(log_dir.joinpath(f'fold_{fold_idx}_backbone.pt')))
             
             logging.info(f'-------------------------------------------------------------------')
             logging.info(f"Fold {fold_idx} - Best train epoch {best_epoch}, best dev UAR {best_dev_uar:.2f}%, best test UAR {best_test_uar:.2f}%")
