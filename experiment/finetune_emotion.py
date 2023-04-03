@@ -5,6 +5,7 @@ import random
 import numpy as np
 import pandas as pd
 import torch.nn as nn
+import loralib as lora
 import argparse, logging
 import torch.multiprocessing
 import copy, time, pickle, shutil, sys, os, pdb
@@ -156,6 +157,7 @@ if __name__ == '__main__':
     
     best_dict = dict()
     if args.dataset == "msp-improv": total_folds = 7
+    elif args.dataset == "msp-podcast": total_folds = 4
     else: total_folds = 6
     # We perform 5 folds (6 folds only on msp-improv data with 6 sessions)
     for fold_idx in range(1, total_folds):
@@ -198,7 +200,7 @@ if __name__ == '__main__':
         elif args.pretrain_model == "wavlm_plus":
             # WavLM Plus Wrapper
             model = WavLMWrapper(args).to(device)
-        elif args.pretrain_model in ["whisper_tiny", "whisper_base", "whisper_small"]:
+        elif args.pretrain_model in ["whisper_tiny", "whisper_base", "whisper_small", "whisper_medium", "whisper_large"]:
             # Whisper Plus Wrapper
             model = WhisperWrapper(args).to(device)
         
@@ -252,7 +254,10 @@ if __name__ == '__main__':
                 best_dev_acc = dev_result["acc"]
                 best_test_acc = test_result["acc"]
                 best_epoch = epoch
-                torch.save(model.state_dict(), str(log_dir.joinpath(f'fold_{fold_idx}.pt')))
+                if args.finetune_method == "lora":
+                    torch.save(lora.lora_state_dict(model), str(log_dir.joinpath(f'fold_{fold_idx}.pt')))
+                else:
+                    torch.save(model.state_dict(), str(log_dir.joinpath(f'fold_{fold_idx}.pt')))
             
             logging.info(f'-------------------------------------------------------------------')
             logging.info(f"Fold {fold_idx} - Best train epoch {best_epoch}, best dev UAR {best_dev_uar:.2f}%, best test UAR {best_test_uar:.2f}%")

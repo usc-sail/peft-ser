@@ -100,6 +100,9 @@ class WhisperEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
         residual = hidden_states
         
+        # if self.config.finetune_method == "adapter": 
+        # hidden_states = hidden_states + adapt_h
+        
         hidden_states = self.final_layer_norm(hidden_states)
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -109,6 +112,8 @@ class WhisperEncoderLayer(nn.Module):
         # Adapter
         if self.config.finetune_method == "adapter":
             hidden_states = self.adapter(hidden_states)
+        # if self.config.finetune_method == "adapter": 
+        #    hidden_states = hidden_states + adapt_h
         hidden_states = residual + hidden_states
 
         if hidden_states.dtype == torch.float16 and (
@@ -158,6 +163,7 @@ class WhisperWrapper(nn.Module):
                 output_hidden_states=True
             )
         self.embed_positions = copy.deepcopy(self.backbone_model.encoder.embed_positions.weight)
+        self.embed_positions.requires_grad = False
         state_dict = self.backbone_model.state_dict()
         # 2. Read the model config
         self.model_config = self.backbone_model.config
