@@ -100,8 +100,9 @@ class WhisperEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
         residual = hidden_states
         
-        # if self.config.finetune_method == "adapter": 
-        # hidden_states = hidden_states + adapt_h
+        # # Adapter
+        if self.config.finetune_method == "adapter":
+            adapt_h = self.adapter(hidden_states)
         
         hidden_states = self.final_layer_norm(hidden_states)
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -110,10 +111,8 @@ class WhisperEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         
         # Adapter
-        if self.config.finetune_method == "adapter":
-            hidden_states = self.adapter(hidden_states)
-        # if self.config.finetune_method == "adapter": 
-        #    hidden_states = hidden_states + adapt_h
+        if self.config.finetune_method == "adapter": 
+            hidden_states = hidden_states + adapt_h
         hidden_states = residual + hidden_states
 
         if hidden_states.dtype == torch.float16 and (
