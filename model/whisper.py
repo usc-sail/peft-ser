@@ -58,7 +58,7 @@ class WhisperEncoderLayer(nn.Module):
             self.fc1 = lora.Linear(self.embed_dim, config.encoder_ffn_dim, r=config.lora_rank)
             self.fc2 = lora.Linear(config.encoder_ffn_dim, self.embed_dim, r=config.lora_rank)
             
-        if self.config.finetune_method == "adapter":
+        if self.config.finetune_method == "adapter" or self.config.finetune_method == "adapter_l":
             self.adapter = Adapter(
                 config, 
                 d_model=self.embed_dim,
@@ -100,7 +100,7 @@ class WhisperEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
         residual = hidden_states
         
-        # # Adapter
+        # Adapter
         if self.config.finetune_method == "adapter":
             adapt_h = self.adapter(hidden_states)
         
@@ -111,16 +111,21 @@ class WhisperEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         
         # Adapter
-        if self.config.finetune_method == "adapter": 
-            hidden_states = hidden_states + adapt_h
+        if self.config.finetune_method == "adapter_l": 
+            hidden_states = hidden_states + self.adapter(hidden_states)
+        
         hidden_states = residual + hidden_states
-
+        
         if hidden_states.dtype == torch.float16 and (
             torch.isinf(hidden_states).any() or torch.isnan(hidden_states).any()
         ):
             clamp_value = torch.finfo(hidden_states.dtype).max - 1000
             hidden_states = torch.clamp(hidden_states, min=-clamp_value, max=clamp_value)
-
+        
+        # Adapter
+        if self.config.finetune_method == "adapter": 
+            hidden_states = hidden_states + adapt_h
+        
         if self.config.finetune_method == "embedding_prompt":
             hidden_states = hidden_states[:, self.config.embedding_prompt_dim:, :]
         outputs = (hidden_states,)
@@ -179,7 +184,7 @@ class WhisperWrapper(nn.Module):
         # 4. Load the weights back
         msg = self.backbone_model.load_state_dict(state_dict, strict=False)
         # 5. Freeze the weights
-        if self.args.finetune_method == "adapter" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora":
+        if self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora":
             for name, p in self.backbone_model.named_parameters():
                 if name in msg.missing_keys: p.requires_grad = True
                 else: p.requires_grad = False

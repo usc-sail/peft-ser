@@ -45,7 +45,7 @@ class WavLMEncoderLayer(nn.Module):
             self.feed_forward.intermediate_dense    = lora.Linear(config.hidden_size, config.intermediate_size, r=config.lora_rank)
             self.feed_forward.output_dense          = lora.Linear(config.intermediate_size, config.hidden_size, r=config.lora_rank)
             
-        if self.config.finetune_method == "adapter":
+        if self.config.finetune_method == "adapter" or self.config.finetune_method == "adapter_l":
             self.adapter = Adapter(
                 config, 
                 dropout=0.1, 
@@ -76,7 +76,8 @@ class WavLMEncoderLayer(nn.Module):
         hidden_states = hidden_states + self.feed_forward(hidden_states)
         if self.config.finetune_method == "adapter": 
             hidden_states = hidden_states + adapt_h
-
+        if self.config.finetune_method == "adapter_l": 
+            hidden_states = hidden_states + self.adapter(hidden_states)
         hidden_states = self.final_layer_norm(hidden_states)
         if self.config.finetune_method == "embedding_prompt":
             hidden_states = hidden_states[:, self.config.embedding_prompt_dim:, :]
@@ -117,7 +118,7 @@ class WavLMWrapper(nn.Module):
         # 4. Load the weights back
         msg = self.backbone_model.load_state_dict(state_dict, strict=False)
         # 5. Freeze the weights
-        if self.args.finetune_method == "adapter" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora":
+        if self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora":
             for name, p in self.backbone_model.named_parameters():
                 if name in msg.missing_keys: p.requires_grad = True
                 else: p.requires_grad = False
