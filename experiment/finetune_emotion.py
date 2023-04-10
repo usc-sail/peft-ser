@@ -254,7 +254,7 @@ if __name__ == '__main__':
                 best_dev_acc = dev_result["acc"]
                 best_test_acc = test_result["acc"]
                 best_epoch = epoch
-                if args.finetune_method == "lora":
+                if args.finetune_method == "lora" or args.finetune_method == "combined":
                     torch.save(lora.lora_state_dict(model), str(log_dir.joinpath(f'fold_{fold_idx}.pt')))
                 else:
                     torch.save(model.state_dict(), str(log_dir.joinpath(f'fold_{fold_idx}.pt')))

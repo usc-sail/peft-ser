@@ -5,11 +5,11 @@ export OMP_NUM_THREADS=1
 
 # for model_type in whisper_tiny whisper_base whisper_small; do
 # for model_type in whisper_large; do
-for model_type in wavlm_plus; do
-    for dataset in iemocap; do
+for model_type in whisper_small whisper_base whisper_tiny; do
+    for dataset in msp-improv; do
         for finetune_method in finetune; do
             for adapter_hidden_dim in 128; do
-                CUDA_VISIBLE_DEVICES=0, taskset -c 1-20 python3 finetune_emotion.py --pretrain_model $model_type --dataset $dataset --learning_rate 0.0005 --num_epochs 30 --finetune_method $finetune_method --adapter_hidden_dim $adapter_hidden_dim
+                CUDA_VISIBLE_DEVICES=0, taskset -c 1-30 python3 finetune_emotion.py --pretrain_model $model_type --dataset $dataset --learning_rate 0.0005 --num_epochs 30 --finetune_method $finetune_method --adapter_hidden_dim $adapter_hidden_dim
             done
         done
     done

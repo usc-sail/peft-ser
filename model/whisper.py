@@ -51,14 +51,14 @@ class WhisperEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
         self.config = config
         
-        if self.config.finetune_method == "embedding_prompt":
+        if self.config.finetune_method == "embedding_prompt" or self.config.finetune_method == "combined":
             self.embed_prompt = nn.Parameter(torch.randn([1, self.config.embedding_prompt_dim, self.embed_dim]))
             nn.init.xavier_uniform_(self.embed_prompt)
-        if self.config.finetune_method == "lora":
+        if self.config.finetune_method == "lora" or self.config.finetune_method == "combined":
             self.fc1 = lora.Linear(self.embed_dim, config.encoder_ffn_dim, r=config.lora_rank)
             self.fc2 = lora.Linear(config.encoder_ffn_dim, self.embed_dim, r=config.lora_rank)
             
-        if self.config.finetune_method == "adapter" or self.config.finetune_method == "adapter_l":
+        if self.config.finetune_method == "adapter" or self.config.finetune_method == "adapter_l" or self.config.finetune_method == "combined":
             self.adapter = Adapter(
                 config, 
                 d_model=self.embed_dim,
@@ -85,7 +85,7 @@ class WhisperEncoderLayer(nn.Module):
                 Whether or not to return the attentions tensors of all attention layers. See `attentions` under
                 returned tensors for more detail.
         """
-        if self.config.finetune_method == "embedding_prompt":
+        if self.config.finetune_method == "embedding_prompt" or self.config.finetune_method == "combined":
             hidden_states = torch.cat((self.embed_prompt.repeat(hidden_states.size(0), 1, 1), hidden_states), dim=1)
         
         residual = hidden_states
@@ -111,7 +111,7 @@ class WhisperEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         
         # Adapter
-        if self.config.finetune_method == "adapter_l": 
+        if self.config.finetune_method == "adapter_l" or self.config.finetune_method == "combined": 
             hidden_states = hidden_states + self.adapter(hidden_states)
         
         hidden_states = residual + hidden_states
@@ -126,7 +126,7 @@ class WhisperEncoderLayer(nn.Module):
         if self.config.finetune_method == "adapter": 
             hidden_states = hidden_states + adapt_h
         
-        if self.config.finetune_method == "embedding_prompt":
+        if self.config.finetune_method == "embedding_prompt" or self.config.finetune_method == "combined":
             hidden_states = hidden_states[:, self.config.embedding_prompt_dim:, :]
         outputs = (hidden_states,)
 
@@ -177,37 +177,44 @@ class WhisperWrapper(nn.Module):
         self.model_config.lora_rank              = args.lora_rank
         
         # 3. Config encoder layers with adapter or embedding prompt
-        # pdb.set_trace()
         self.backbone_model.encoder.layers = nn.ModuleList(
             [WhisperEncoderLayer(self.model_config) for _ in range(self.model_config.encoder_layers)]
         )
         # 4. Load the weights back
         msg = self.backbone_model.load_state_dict(state_dict, strict=False)
         # 5. Freeze the weights
-        if self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora":
+        if self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora" or self.args.finetune_method == "combined":
             for name, p in self.backbone_model.named_parameters():
                 if name in msg.missing_keys: p.requires_grad = True
                 else: p.requires_grad = False
         self.finetune_method = self.args.finetune_method
         
         # 6. Downstream models
-        self.model_seq = nn.Sequential(
-            nn.Conv1d(self.model_config.hidden_size, hidden_dim, 1, padding=0),
-            nn.ReLU(),
-            nn.Dropout(p=0.1),
-            nn.Conv1d(hidden_dim, hidden_dim, 1, padding=0),
-            nn.ReLU(),
-            nn.Dropout(p=0.1),
-            nn.Conv1d(hidden_dim, hidden_dim, 1, padding=0)
-        )
+        if args.finetune_emb == "all":
+            self.model_seq = nn.Sequential(
+                nn.Conv1d(self.model_config.hidden_size, hidden_dim, 1, padding=0),
+                nn.ReLU(),
+                nn.Dropout(p=0.1),
+                nn.Conv1d(hidden_dim, hidden_dim, 1, padding=0),
+                nn.ReLU(),
+                nn.Dropout(p=0.1),
+                nn.Conv1d(hidden_dim, hidden_dim, 1, padding=0)
+            )
         self.weights = nn.Parameter(torch.zeros(self.model_config.num_hidden_layers))
         
-        self.out_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, output_class_num),
-        )
-        
+        if args.finetune_emb == "all":
+            self.out_layer = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, output_class_num),
+            )
+        else:
+            self.out_layer = nn.Sequential(
+                nn.Linear(self.model_config.embed_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, output_class_num),
+            )
+            
     def forward(self, x, length=None):
         # 1. feature extraction and projections
         if length is not None:
@@ -265,9 +272,10 @@ class WhisperWrapper(nn.Module):
         
         # 6. Pass the weighted average to point-wise 1D Conv
         # B x T x D
-        features = features.transpose(1, 2)
-        features = self.model_seq(features)
-        features = features.transpose(1, 2)
+        if self.args.finetune_emb == "all":
+            features = features.transpose(1, 2)
+            features = self.model_seq(features)
+            features = features.transpose(1, 2)
         
         # 7. Pooling
         if length is not None:

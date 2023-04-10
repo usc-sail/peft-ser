@@ -2,7 +2,11 @@ import json
 import torch
 import random
 import numpy as np
+import transformers
 import argparse, logging
+
+
+transformers.logging.set_verbosity(40)
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-3s ==> %(message)s', 
@@ -251,7 +255,7 @@ def parse_finetune_args():
     
     parser.add_argument(
         '--finetune_method', 
-        default='none',
+        default='finetune',
         type=str, 
         help='finetune method: adapter, embedding prompt, input prompt'
     )
@@ -260,6 +264,13 @@ def parse_finetune_args():
         '--adapter_hidden_dim', 
         default=128,
         type=int, 
+        help='adapter dimension'
+    )
+    
+    parser.add_argument(
+        '--finetune_emb', 
+        default="all",
+        type=str, 
         help='adapter dimension'
     )
     
@@ -286,6 +297,11 @@ def parse_finetune_args():
         setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}_{args.lora_rank}'
     elif args.finetune_method == "finetune":
         setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}'
+    elif args.finetune_method == "combined":
+        setting = f'lr{str(args.learning_rate).replace(".", "")}_ep{args.num_epochs}_{args.finetune_method}_{args.adapter_hidden_dim}_{args.embedding_prompt_dim}_{args.lora_rank}'
     args.setting = setting
+    if args.finetune_emb != "all":
+        args.setting = args.setting + "_avgtok"
+    
     return args
 
