@@ -15,7 +15,7 @@
 #### Our framework demonstrates that LoRa is an effective way to finetune pre-trained speech models for SER (see example on IEMOCAP):
 
 <div align="center">
- <img src="img/peft-iemocap.png" width="500px">
+ <img src="img/peft-iemocap.png" width="800px">
 </div>
 
 
