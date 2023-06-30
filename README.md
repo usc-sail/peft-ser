@@ -1,8 +1,7 @@
-# PEFT-SER [[Paper Link](https://arxiv.org/abs/2306.05350)]
+# PEFT-SER [[Paper Link](https://arxiv.org/abs/2306.05350)] was accepted to 11th International Conference on Affective Computing and Intelligent Interaction (ACII), 2023. 
 
-## Paper Title: PEFT-SER: On the Use of Parameter Efficient Transfer Learning Approaches For Speech Emotion Recognition Using Pre-trained Speech Models
+### This work include implementations for PEFT-SER: On the Use of Parameter Efficient Transfer Learning Approaches For Speech Emotion Recognition Using Pre-trained Speech Models. PEFT-SER is an open source project for researchers exploring SER applications with using parameter efficient finetuning methods.
 
-#### PEFT-SER is an open source project for researchers exploring SER applications with using parameter efficient finetuning methods
 
 ### Our framework support popular pre-trained speech models:
 
