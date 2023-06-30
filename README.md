@@ -12,6 +12,13 @@
 5. Whisper Small
 6. MMS, WavLM Large, HuBert, Whisper Medium (adding soon)
 
+#### Our framework demonstrates that LoRa is an effective way to finetune pre-trained speech models for SER (see example on IEMOCAP):
+
+<div align="center">
+ <img src="img/peft-iemocap.png" width="500px">
+</div>
+
+
 ### 1. Installation
 To begin with, please clone this repo:
 ```
