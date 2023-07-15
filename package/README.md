@@ -72,13 +72,11 @@ Please cite the following that includes the foundation of the code/methods used 
 ```
 **[Trust-SER](https://arxiv.org/abs/2305.11229)**
 ```
-@article{feng2023peft,
-  @article{feng2023trustser,
+@article{feng2023trustser,
   title={TrustSER: On the trustworthiness of fine-tuning pre-trained speech embeddings for speech emotion recognition},
   author={Feng, Tiantian and Hebbar, Rajat and Narayanan, Shrikanth},
   journal={arXiv preprint arXiv:2305.11229},
   year={2023}
-}
 }
 ```
 
