@@ -34,7 +34,7 @@ output = model(data)
 The output emotion mappings are: {0: "Neutral", 1: "Angry", 2: "Sad", 3: "Happy"}. We would add a version for 6-emotion later.
 
 #### b. Training details
-For all the released models, we train/evaluate with the same data.  Unlike the ACII paper where the audio was restricted to 6s, these open-release models support the audio duration to the maximum of 10s for broader use cases. We also combine the convolutional output along with the transformer encodings for fine-tuning, as we find this further increase the model performance. We used a fix seed of 8.
+For all the released models, we train/evaluate with the same data.  Unlike the ACII paper where the audio was restricted to 6s, these open-release models support the audio duration to the maximum of 10s for broader use cases. We also combine the convolutional output along with the transformer encodings for fine-tuning, as we find this further increase the model performance. We used a fix seed of 8, training epoch of 30, and learning rate of 2.5x10e-4.
 
 #### c. Training/validation/test splits for reproducing the results
 
@@ -52,7 +52,7 @@ Whisper Tiny | 62.26 | 63.48 | whisper-tiny-lora-16-conv
 Whisper Base | 64.39 | 64.92 | whisper-base-lora-16-conv 
 Whisper Small | 65.77 | 66.01 | whisper-small-lora-16-conv 
 MMS |  |  | mms-lora-16-conv 
-WavLM Base+ | 63.06 | 65.93 | wavlm-plus-lora-16-conv 
+WavLM Base+ | 63.06 | 66.11 | wavlm-plus-lora-16-conv 
 WavLM Large | 68.54 | **68.66** | wavlm-large-lora-16-conv 
 
 #### e. You are free to explore the use of existing models to further fine-tune on other SER datasets, more challenging tasks like 6-emotion, 8-emotion recognition, and also transfer learning on Arousal/Valence/Dominance.
