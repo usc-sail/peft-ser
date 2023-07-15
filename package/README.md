@@ -52,7 +52,7 @@ Whisper Base | 64.39 | 64.92 | whisper-base-lora-16-conv
 Whisper Small | 65.77 | 66.01 | whisper-small-lora-16-conv 
 MMS |  |  | mms-lora-16-conv 
 WavLM Base+ | 63.06 | 65.93 | wavlm-plus-lora-16-conv 
-WavLM Large | 68.54 | *68.66* | wavlm-large-lora-16-conv 
+WavLM Large | 68.54 | **68.66** | wavlm-large-lora-16-conv 
 
 ### e. You are free to explore the use of existing models to further fine-tune on other ser datasets, more challenging tasks like 6-emotion, 8-emotion recognition, and also transfer learning on Arousal/Valence/Dominance.
 
