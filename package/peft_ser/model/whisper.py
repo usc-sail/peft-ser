@@ -293,7 +293,7 @@ class WhisperSER(nn.Module):
                 sampling_rate=16000,
                 max_length=max_audio_len
             )
-            features = features.input_features.cuda()
+            features = features.input_features.to(x.device)
         else:
             features = self.feature_extractor(
                 x[0].detach().cpu(), 
@@ -301,7 +301,7 @@ class WhisperSER(nn.Module):
                 sampling_rate=16000,
                 max_length=len(x[0])
             )
-            features = features.input_features.cuda()
+            features = features.input_features.to(x.device)
         
         # 2. get length and mask
         if length is not None:
@@ -346,8 +346,8 @@ class WhisperSER(nn.Module):
         
         # 7. Pooling
         if length is not None:
-            length = length.cuda()
-            masks = torch.arange(features.size(1)).expand(length.size(0), -1).cuda() < length.unsqueeze(1)
+            length = length.to(x.device)
+            masks = torch.arange(features.size(1)).expand(length.size(0), -1).to(x.device) < length.unsqueeze(1)
             masks = masks.float()
             features = (features * masks.unsqueeze(-1)).sum(1) / length.unsqueeze(1)
         else:

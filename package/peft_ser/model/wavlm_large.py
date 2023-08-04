@@ -222,7 +222,7 @@ class WavLMLargeSER(nn.Module):
                 attention_mask[i, length[i]:] = 0
 
             length = self._get_feat_extract_output_lengths(length.detach().cpu())
-            length = length.cuda()
+            length = length.to(x.device)
             
         # 3. transformer encoding features
         if length is not None:
@@ -264,8 +264,8 @@ class WavLMLargeSER(nn.Module):
         
         # 7. Pooling
         if length is not None:
-            length = length.cuda()
-            masks = torch.arange(features.size(1)).expand(length.size(0), -1).cuda() < length.unsqueeze(1)
+            length = length.to(x.device)
+            masks = torch.arange(features.size(1)).expand(length.size(0), -1).to(x.device) < length.unsqueeze(1)
             masks = masks.float()
             features = (features * masks.unsqueeze(-1)).sum(1) / length.unsqueeze(1)
         else:

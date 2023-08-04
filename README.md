@@ -22,24 +22,37 @@ pip install peft-ser
 ### 2. Model Loading
 ```
 # whisper style loading
+import torch
 import peft_ser
 model = peft_ser.load_model("whisper-base-lora-16-conv")
 
 data = torch.zeros([1, 16000])
 output = model(data)
+logits = torch.softmax(output, dim=1)
 ```
 #### a. Output mapping
 The output emotion mappings are: **{0: "Neutral", 1: "Angry", 2: "Sad", 3: "Happy"}**. We would add a version for 6-emotion later.
 
-#### b. Available models
+#### b. Training details
+For all the released models, we train/evaluate with the same data.  Unlike the ACII paper where the audio was restricted to 6s, these open-release models support the audio duration to the maximum of 10s for broader use cases. We also combine the convolutional output along with the transformer encodings for fine-tuning, as we find this further increase the model performance. We used a fix seed of 8, training epoch of 30, and learning rate of 2.5x10e-4.
+
+#### c. Training/validation/test splits for reproducing the results
+
+**The validation set:** Session 4 of IEMOCAP and Session 4 of MSP-Improv dataset, Validation set of MSP-Podcast dataset, and Speaker 1059-1073
+
+**The evaluation set:** Session 5 of IEMOCAP and Session 5 of MSP-Improv dataset, Test set of MSP-Podcast dataset, and Speaker 1074-1091
+
+**All rest data are used for training.**
+
+#### d. Performance
 
 Pre-trained Model | Test Performance without PEFT | Test Performance with LoRa | PEFT Model Name
 |---|---|---|---
 Whisper Tiny | 62.26 | 63.48 | whisper-tiny-lora-16-conv 
 Whisper Base | 64.39 | 64.92 | whisper-base-lora-16-conv 
-Whisper Small | 65.77 | 66.01 | whisper-small-lora-16-conv  
+Whisper Small | 65.77 | 66.01 | whisper-small-lora-16-conv
 WavLM Base+ | 63.06 | 66.11 | wavlm-plus-lora-16-conv 
-WavLM Large | 68.32 | **68.66** | wavlm-large-lora-16-conv 
+WavLM Large | 68.54 | **68.66** | wavlm-large-lora-16-conv  
 
 ### Paper repo
 ### 1. Installation

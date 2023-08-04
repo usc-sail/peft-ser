@@ -170,7 +170,7 @@ class WavLMPlusSER(nn.Module):
         # 2. get length and mask
         if length is not None:
             length = self.get_feat_extract_output_lengths(length.detach().cpu())
-            length = length.cuda()
+            length = length.to(x.device)
             
         # 3. transformer encoding features
         x = self.backbone_model.encoder(
@@ -204,7 +204,7 @@ class WavLMPlusSER(nn.Module):
         
         # 7. Pooling
         if length is not None:
-            masks = torch.arange(features.size(1)).expand(length.size(0), -1).cuda() < length.unsqueeze(1)
+            masks = torch.arange(features.size(1)).expand(length.size(0), -1).to(x.device) < length.unsqueeze(1)
             masks = masks.float()
             features = (features * masks.unsqueeze(-1)).sum(1) / length.unsqueeze(1)
         else:

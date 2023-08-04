@@ -3,3 +3,4 @@ torch
 tqdm
 more-itertools
 transformers
+loralib

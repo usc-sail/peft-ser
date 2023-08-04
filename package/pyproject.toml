@@ -1,6 +1,6 @@
 [project]
 name = "peft-ser"
-version = "0.0.1"
+version = "0.0.3"
 authors = [
   { name="Tiantian Feng", email="tiantiaf@usc.edu" },
 ]
