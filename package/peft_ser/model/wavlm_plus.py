@@ -2,24 +2,15 @@
 # and https://github.com/wngh1187/IPET/blob/main/Speechcommands_V2/W2V2/models/W2V2.py
 import os
 import pdb
-import copy
 import torch
 import argparse
-import numpy as np
 import loralib as lora
-import transformers.models.wav2vec2.modeling_wav2vec2 as w2v2
 import transformers.models.wavlm.modeling_wavlm as wavlm
 
-from functools import lru_cache
-from torchaudio.compliance import kaldi
-
 from torch import nn
-from adapter import Adapter
-from collections import OrderedDict
-from typing import Optional, Callable
+from .adapter import Adapter
 from torch.nn import functional as F
-from torch.nn.functional import normalize
-from transformers import Wav2Vec2Model, Wav2Vec2Config, Wav2Vec2Processor, AutoProcessor, WavLMModel, WhisperModel, AutoFeatureExtractor
+from transformers import WavLMModel
 
 class WavLMEncoderLayer(nn.Module):
     def __init__(self, config, has_relative_position_bias: bool = True):
@@ -88,16 +79,21 @@ class WavLMEncoderLayer(nn.Module):
 
         return outputs
    
-class WavLMWrapper(nn.Module):
+class WavLMPlusSER(nn.Module):
     def __init__(
         self, 
-        args, 
-        hidden_dim=256,
-        output_class_num=4
+        pretrained_model:       str = "wavlm_plus",
+        hidden_dim:             int = 256,
+        output_class_num:       int = 4,
+        finetune_method:        str = "lora",
+        adapter_hidden_dim:     int = 128,
+        embedding_prompt_dim:   int = 3,
+        lora_rank:              int = 8,
+        use_conv_output:        bool = True,
+        enable_peft_training:   bool = True
     ):
-        super(WavLMWrapper, self).__init__()
+        super(WavLMPlusSER, self).__init__()
         # 1. We Load the model first with weights
-        self.args = args
         self.backbone_model = WavLMModel.from_pretrained(
             "microsoft/wavlm-base-plus",
             output_hidden_states=True
@@ -105,10 +101,10 @@ class WavLMWrapper(nn.Module):
         state_dict = self.backbone_model.state_dict()
         # 2. Read the model config
         self.model_config = self.backbone_model.config
-        self.model_config.finetune_method        = args.finetune_method
-        self.model_config.adapter_hidden_dim     = args.adapter_hidden_dim
-        self.model_config.embedding_prompt_dim   = args.embedding_prompt_dim
-        self.model_config.lora_rank              = args.lora_rank
+        self.model_config.finetune_method        = finetune_method
+        self.model_config.adapter_hidden_dim     = adapter_hidden_dim
+        self.model_config.embedding_prompt_dim   = embedding_prompt_dim
+        self.model_config.lora_rank              = lora_rank
         
         # 3. Config encoder layers with adapter or embedding prompt
         # pdb.set_trace()
@@ -118,11 +114,12 @@ class WavLMWrapper(nn.Module):
         # 4. Load the weights back
         msg = self.backbone_model.load_state_dict(state_dict, strict=False)
         # 5. Freeze the weights
-        if self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora" or self.args.finetune_method == "combined":
-            for name, p in self.backbone_model.named_parameters():
-                if name in msg.missing_keys: p.requires_grad = True
-                else: p.requires_grad = False
-        self.finetune_method = self.args.finetune_method
+        for name, p in self.backbone_model.named_parameters():
+            if name in msg.missing_keys and enable_peft_training: 
+                p.requires_grad = True
+            else: 
+                p.requires_grad = False
+        self.finetune_method = finetune_method
         
         # 6. Downstream models
         self.model_seq = nn.Sequential(
@@ -135,18 +132,33 @@ class WavLMWrapper(nn.Module):
             nn.Conv1d(hidden_dim, hidden_dim, 1, padding=0)
         )
 
-        if args.use_conv_output:
+        self.use_conv_output = use_conv_output
+        if use_conv_output:
             num_layers = self.model_config.num_hidden_layers + 1  # transformer layers + input embeddings
-            self.weights = nn.Parameter(torch.ones(num_layers)/num_layers)
+            self.layer_weights = nn.Parameter(torch.ones(num_layers)/num_layers)
         else:
             num_layers = self.model_config.num_hidden_layers
-            self.weights = nn.Parameter(torch.zeros(num_layers))
+            self.layer_weights = nn.Parameter(torch.zeros(num_layers))
         
         self.out_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, output_class_num),
         )
+
+        # initiate model setting
+        self.init_peft_model_setting()
+
+    def init_peft_model_setting(self):
+        self.model_setting = self.finetune_method
+        if self.finetune_method == "lora":
+            self.model_setting += f"_{self.model_config.lora_rank}"
+        elif self.finetune_method == "adapter":
+            self.model_setting += f"_{self.model_config.adapter_hidden_dim}"
+        elif self.finetune_method == "embedding_prompt":
+            self.model_setting += f"_{self.model_config.embedding_prompt_dim}"
+        if self.use_conv_output:
+            self.model_setting += "_conv_output"
         
     def forward(self, x, length=None):
         # 1. feature extraction and projections
@@ -166,7 +178,7 @@ class WavLMWrapper(nn.Module):
         ).hidden_states
         
         # 4. stacked feature
-        if self.args.use_conv_output:
+        if self.use_conv_output:
             stacked_feature = torch.stack(x, dim=0)
         else:
             stacked_feature = torch.stack(x, dim=0)[1:]
@@ -174,11 +186,11 @@ class WavLMWrapper(nn.Module):
         # 5. Weighted sum
         _, *origin_shape = stacked_feature.shape
         # Return transformer enc outputs [num_enc_layers, B, T, D]
-        if self.args.use_conv_output:
+        if self.use_conv_output:
             stacked_feature = stacked_feature.view(self.backbone_model.config.num_hidden_layers+1, -1)
         else:
             stacked_feature = stacked_feature.view(self.backbone_model.config.num_hidden_layers, -1)
-        norm_weights = F.softmax(self.weights, dim=-1)
+        norm_weights = F.softmax(self.layer_weights, dim=-1)
         
         # Perform weighted average
         weighted_feature = (norm_weights.unsqueeze(-1) * stacked_feature).sum(dim=0)

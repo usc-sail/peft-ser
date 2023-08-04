@@ -287,6 +287,12 @@ def parse_finetune_args():
         type=int, 
         help='lora rank'
     )
+
+    parser.add_argument(
+        '--use-conv-output', 
+        action='store_true',
+        help='use conv output'
+    )
     
     args = parser.parse_args()
     if args.finetune_method == "adapter" or args.finetune_method == "adapter_l":
@@ -302,6 +308,8 @@ def parse_finetune_args():
     args.setting = setting
     if args.finetune_emb != "all":
         args.setting = args.setting + "_avgtok"
+    if args.use_conv_output:
+        args.setting = args.setting + "_conv_output"
     
     return args
 

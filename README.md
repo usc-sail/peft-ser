@@ -12,13 +12,36 @@
 5. Whisper Small
 6. MMS, WavLM Large, HuBert, Whisper Medium (adding soon)
 
-#### Our framework demonstrates that LoRa is an effective way to finetune pre-trained speech models for SER (see example on IEMOCAP):
 
-<div align="center">
- <img src="img/peft-iemocap.png" width="800px">
-</div>
+### Ready-to-use PEFT-SER models
+### 1. Installation
+```
+pip install peft-ser
+```
 
+### 2. Model Loading
+```
+# whisper style loading
+import peft_ser
+model = peft_ser.load_model("whisper-base-lora-16-conv")
 
+data = torch.zeros([1, 16000])
+output = model(data)
+```
+#### a. Output mapping
+The output emotion mappings are: **{0: "Neutral", 1: "Angry", 2: "Sad", 3: "Happy"}**. We would add a version for 6-emotion later.
+
+#### b. Available models
+
+Pre-trained Model | Test Performance without PEFT | Test Performance with LoRa | PEFT Model Name
+|---|---|---|---
+Whisper Tiny | 62.26 | 63.48 | whisper-tiny-lora-16-conv 
+Whisper Base | 64.39 | 64.92 | whisper-base-lora-16-conv 
+Whisper Small | 65.77 | 66.01 | whisper-small-lora-16-conv  
+WavLM Base+ | 63.06 | 66.11 | wavlm-plus-lora-16-conv 
+WavLM Large | 68.32 | **68.66** | wavlm-large-lora-16-conv 
+
+### Paper repo
 ### 1. Installation
 To begin with, please clone this repo:
 ```
@@ -97,5 +120,13 @@ CUDA_VISIBLE_DEVICES=0, taskset -c 1-60 python3 finetune_emotion.py --pretrain_m
 ```
 
 The output will be under: OUTPUT_PATH/result/, the output metrics is UAR, and the higher the metric, the better the performance.
+
+
+#### Our framework demonstrates that LoRa is an effective way to finetune pre-trained speech models for SER (see example on IEMOCAP):
+
+<div align="center">
+ <img src="img/peft-iemocap.png" width="800px">
+</div>
+
 
 #### Note: We are actively update and clean code before the conference date, if you use our code, please check the final version before ACII conference.

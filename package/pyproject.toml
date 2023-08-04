@@ -1,0 +1,20 @@
+[project]
+name = "peft-ser"
+version = "0.0.1"
+authors = [
+  { name="Tiantian Feng", email="tiantiaf@usc.edu" },
+]
+description = "Parameter Efficient Fine-tuning on Speech Emotion Recognition."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/usc-sail/peft-ser"
+"Bug Tracker" = "https://github.com/usc-sail/peft-ser/issues"
+
+[tools.setuptools]
+packages = ["src"]

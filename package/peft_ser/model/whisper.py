@@ -1,38 +1,70 @@
 # part of the code was referenced from SUPERB: https://github.com/s3prl/s3prl
 # and https://github.com/wngh1187/IPET/blob/main/Speechcommands_V2/W2V2/models/W2V2.py
-import os
 import pdb
 import copy
 import torch
 import argparse
-import numpy as np
 import loralib as lora
 import transformers.models.whisper.modeling_whisper as whisper
 
-from functools import lru_cache
-
 from torch import nn
-from adapter import Adapter
-from collections import OrderedDict
-from typing import Optional, Callable
+from .adapter import Adapter
 from torch.nn import functional as F
 from transformers.activations import ACT2FN
-from transformers import WavLMModel, WhisperModel, AutoFeatureExtractor
+from transformers import WhisperModel, AutoFeatureExtractor
 
-@lru_cache(maxsize=None)
-def mel_filters(device, n_mels: int = 80):
-    """
-    load the mel filterbank matrix for projecting STFT into a Mel spectrogram.
-    Allows decoupling librosa dependency; saved using:
-        np.savez_compressed(
-            "mel_filters.npz",
-            mel_80=librosa.filters.mel(sr=16000, n_fft=400, n_mels=80),
-        )
-    """
-    assert n_mels == 80, f"Unsupported n_mels: {n_mels}"
-    with np.load(os.path.join(os.path.dirname(__file__), "mel_filters.npz")) as f:
-        return torch.from_numpy(f[f"mel_{n_mels}"]).to(device)
+model_config = {
+    "whisper_base_lora_16_conv_output": {
+        "pretrained_model": "whisper_base",
+        "finetune_method": "lora",
+        "lora_rank": 16,
+        "use_conv_outpu": True,
+        "classifier_link": "https://www.dropbox.com/scl/fi/sq6w9vfrlyd0t3y5xwnnm/whisper_base_lora_16_conv_output.pt?rlkey=xtot2gi9au83xi4f3kxzwjac9&dl=0",
+        "lora_link": "https://www.dropbox.com/scl/fi/46bb08ek2zbt32fmqrg21/whisper_base_lora_16_conv_output_lora.pt?rlkey=452zdg99to7ntol3rjrtgccog&dl=0"
+    },
+    "whisper_base_lora_8_conv_output": {
+        "pretrained_model": "whisper_base",
+        "finetune_method": "lora",
+        "lora_rank": 8,
+        "use_conv_outpu": True,
+        "classifier_link": "https://www.dropbox.com/scl/fi/sq6w9vfrlyd0t3y5xwnnm/whisper_base_lora_8_conv_output.pt?rlkey=xtot2gi9au83xi4f3kxzwjac9&dl=0",
+        "lora_link": "https://www.dropbox.com/scl/fi/46bb08ek2zbt32fmqrg21/whisper_base_lora_8_conv_output_lora.pt?rlkey=452zdg99to7ntol3rjrtgccog&dl=0"
+    },
+    "whisper_small_lora_16_conv_output": {
+        "pretrained_model": "whisper_small",
+        "finetune_method": "lora",
+        "lora_rank": 16,
+        "use_conv_outpu": True,
+        "classifier_link": "https://www.dropbox.com/scl/fi/sq6w9vfrlyd0t3y5xwnnm/whisper_small_lora_16_conv_output.pt?rlkey=xtot2gi9au83xi4f3kxzwjac9&dl=0",
+        "lora_link": "https://www.dropbox.com/scl/fi/46bb08ek2zbt32fmqrg21/whisper_small_lora_16_conv_output_lora.pt?rlkey=452zdg99to7ntol3rjrtgccog&dl=0"
+    },
+    "whisper_small_lora_8_conv_output": {
+        "pretrained_model": "whisper_small",
+        "finetune_method": "lora",
+        "lora_rank": 8,
+        "use_conv_outpu": True,
+        "classifier_link": "https://www.dropbox.com/scl/fi/sq6w9vfrlyd0t3y5xwnnm/whisper_small_lora_8_conv_output.pt?rlkey=xtot2gi9au83xi4f3kxzwjac9&dl=0",
+        "lora_link": "https://www.dropbox.com/scl/fi/46bb08ek2zbt32fmqrg21/whisper_small_lora_8_conv_output_lora.pt?rlkey=452zdg99to7ntol3rjrtgccog&dl=0"
+    },
+    "whisper_tiny_lora_16_conv_output": {
+        "pretrained_model": "whisper_tiny",
+        "finetune_method": "lora",
+        "lora_rank": 16,
+        "use_conv_outpu": True,
+        "classifier_link": "https://www.dropbox.com/scl/fi/sq6w9vfrlyd0t3y5xwnnm/whisper_tiny_lora_16_conv_output.pt?rlkey=xtot2gi9au83xi4f3kxzwjac9&dl=0",
+        "lora_link": "https://www.dropbox.com/scl/fi/46bb08ek2zbt32fmqrg21/whisper_tiny_lora_16_conv_output_lora.pt?rlkey=452zdg99to7ntol3rjrtgccog&dl=0"
+    },
+    "whisper_tiny_lora_8_conv_output": {
+        "pretrained_model": "whisper_tiny",
+        "finetune_method": "lora",
+        "lora_rank": 8,
+        "use_conv_outpu": True,
+        "classifier_link": "https://www.dropbox.com/scl/fi/sq6w9vfrlyd0t3y5xwnnm/whisper_tiny_lora_8_conv_output.pt?rlkey=xtot2gi9au83xi4f3kxzwjac9&dl=0",
+        "lora_link": "https://www.dropbox.com/scl/fi/46bb08ek2zbt32fmqrg21/whisper_tiny_lora_8_conv_output_lora.pt?rlkey=452zdg99to7ntol3rjrtgccog&dl=0"
+    }
+}
 
+# Attach code is from huggingface
 class WhisperEncoderLayer(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -51,7 +83,7 @@ class WhisperEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
         self.config = config
         
-        if self.config.finetune_method == "embedding_prompt" or self.config.finetune_method == "combined":
+        if self.config.finetune_method == "embedding_prompt":
             self.embed_prompt = nn.Parameter(torch.randn([1, self.config.embedding_prompt_dim, self.embed_dim]))
             nn.init.xavier_uniform_(self.embed_prompt)
         if self.config.finetune_method == "lora" or self.config.finetune_method == "combined":
@@ -135,46 +167,58 @@ class WhisperEncoderLayer(nn.Module):
 
         return outputs
    
-class WhisperWrapper(nn.Module):
+class WhisperSER(nn.Module):
     def __init__(
         self, 
-        args, 
-        hidden_dim=256,
-        output_class_num=4
+        pretrained_model:       str = "whisper_tiny",
+        hidden_dim:             int = 256,
+        output_class_num:       int = 4,
+        finetune_method:        str = "lora",
+        adapter_hidden_dim:     int = 128,
+        embedding_prompt_dim:   int = 3,
+        lora_rank:              int = 8,
+        cache_dir:              str = ".",
+        use_conv_output:        bool = True,
+        enable_peft_training:   bool = True
     ):
-        super(WhisperWrapper, self).__init__()
+        super(WhisperSER, self).__init__()
         # 1. We Load the model first with weights
-        self.args = args
         self.feature_extractor = AutoFeatureExtractor.from_pretrained("openai/whisper-tiny")
-        if args.pretrain_model == "whisper_tiny":
+        self.pretrained_model = pretrained_model
+        
+        if self.pretrained_model == "whisper_tiny":
             self.backbone_model = WhisperModel.from_pretrained(
                 "openai/whisper-tiny",
-                output_hidden_states=True
+                output_hidden_states=True,
+                cache_dir=cache_dir
             )
-        elif args.pretrain_model == "whisper_base":
+        elif self.pretrained_model == "whisper_base":
             self.backbone_model = WhisperModel.from_pretrained(
                 "openai/whisper-base",
-                output_hidden_states=True
+                output_hidden_states=True,
+                cache_dir=cache_dir
             )
-        elif args.pretrain_model == "whisper_small":
+        elif self.pretrained_model == "whisper_small":
             self.backbone_model = WhisperModel.from_pretrained(
                 "openai/whisper-small",
-                output_hidden_states=True
+                output_hidden_states=True,
+                cache_dir=cache_dir
             )
-        elif args.pretrain_model == "whisper_medium":
+        elif self.pretrained_model == "whisper_medium":
             self.backbone_model = WhisperModel.from_pretrained(
                 "openai/whisper-medium",
-                output_hidden_states=True
+                output_hidden_states=True,
+                cache_dir=cache_dir
             )
         self.embed_positions = copy.deepcopy(self.backbone_model.encoder.embed_positions.weight)
         self.embed_positions.requires_grad = False
         state_dict = self.backbone_model.state_dict()
         # 2. Read the model config
         self.model_config = self.backbone_model.config
-        self.model_config.finetune_method        = args.finetune_method
-        self.model_config.adapter_hidden_dim     = args.adapter_hidden_dim
-        self.model_config.embedding_prompt_dim   = args.embedding_prompt_dim
-        self.model_config.lora_rank              = args.lora_rank
+        self.model_config.finetune_method        = finetune_method
+        self.model_config.adapter_hidden_dim     = adapter_hidden_dim
+        self.model_config.embedding_prompt_dim   = embedding_prompt_dim
+        self.model_config.lora_rank              = lora_rank
         
         # 3. Config encoder layers with adapter or embedding prompt
         self.backbone_model.encoder.layers = nn.ModuleList(
@@ -183,11 +227,12 @@ class WhisperWrapper(nn.Module):
         # 4. Load the weights back
         msg = self.backbone_model.load_state_dict(state_dict, strict=False)
         # 5. Freeze the weights
-        if self.args.finetune_method == "adapter" or self.args.finetune_method == "adapter_l" or self.args.finetune_method == "embedding_prompt" or self.args.finetune_method == "finetune" or self.args.finetune_method == "lora" or self.args.finetune_method == "combined":
-            for name, p in self.backbone_model.named_parameters():
-                if name in msg.missing_keys: p.requires_grad = True
-                else: p.requires_grad = False
-        self.finetune_method = self.args.finetune_method
+        for name, p in self.backbone_model.named_parameters():
+            if name in msg.missing_keys and enable_peft_training: 
+                p.requires_grad = True
+            else: 
+                p.requires_grad = False
+        self.finetune_method = finetune_method
         
         # 6. Downstream models
         self.model_seq = nn.Sequential(
@@ -199,20 +244,40 @@ class WhisperWrapper(nn.Module):
             nn.Dropout(p=0.1),
             nn.Conv1d(hidden_dim, hidden_dim, 1, padding=0)
         )
-        if args.use_conv_output:
+
+        self.use_conv_output = use_conv_output
+        if self.use_conv_output:
             num_layers = self.model_config.num_hidden_layers + 1  # transformer layers + input embeddings
-            self.weights = nn.Parameter(torch.ones(num_layers)/num_layers)
+            self.layer_weights = nn.Parameter(torch.ones(num_layers)/num_layers)
         else:
             num_layers = self.model_config.num_hidden_layers
-            self.weights = nn.Parameter(torch.zeros(num_layers))
+            self.layer_weights = nn.Parameter(torch.zeros(num_layers))
         
         self.out_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, output_class_num),
         )
+        
+        # initiate model setting
+        self.init_peft_model_setting()
+
+    def init_peft_model_setting(self):
+        self.model_setting = self.finetune_method
+        if self.finetune_method == "lora":
+            self.model_setting += f"_{self.model_config.lora_rank}"
+        elif self.finetune_method == "adapter":
+            self.model_setting += f"_{self.model_config.adapter_hidden_dim}"
+        elif self.finetune_method == "embedding_prompt":
+            self.model_setting += f"_{self.model_config.embedding_prompt_dim}"
+        if self.use_conv_output:
+            self.model_setting += "_conv_output"
             
     def forward(self, x, length=None):
+        # 0. check input length
+        assert len(x.shape) == 2, "Input data shape wrong"
+        assert len(x[0]) <= 10 * 16000, "SER training was using 10s window frame, please crop your data to 10s"
+
         # 1. feature extraction and projections
         if length is not None:
             max_audio_len = length.max().detach().cpu()
@@ -255,7 +320,7 @@ class WhisperWrapper(nn.Module):
         ).hidden_states
         
         # 4. stacked feature
-        if self.args.use_conv_output:
+        if self.use_conv_output:
             stacked_feature = torch.stack(features, dim=0)
         else:
             stacked_feature = torch.stack(features, dim=0)[1:]
@@ -263,11 +328,11 @@ class WhisperWrapper(nn.Module):
         # 5. Weighted sum
         _, *origin_shape = stacked_feature.shape
         # Return transformer enc outputs [num_enc_layers, B, T, D]
-        if self.args.use_conv_output:
+        if self.use_conv_output:
             stacked_feature = stacked_feature.view(self.backbone_model.config.num_hidden_layers+1, -1)
         else:
             stacked_feature = stacked_feature.view(self.backbone_model.config.num_hidden_layers, -1)
-        norm_weights = F.softmax(self.weights, dim=-1)
+        norm_weights = F.softmax(self.layer_weights, dim=-1)
         
         # Perform weighted average
         weighted_feature = (norm_weights.unsqueeze(-1) * stacked_feature).sum(dim=0)
