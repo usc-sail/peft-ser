@@ -70,7 +70,8 @@ def train_epoch(
     dataloader, 
     model, 
     device, 
-    optimizer
+    optimizer,
+    weights
 ):
     model.train()
     criterion = nn.CrossEntropyLoss(weights).to(device)
@@ -112,6 +113,7 @@ def validate_epoch(
     dataloader, 
     model, 
     device,
+    weights,
     split:  str="Validation"
 ):
     model.eval()
@@ -237,15 +239,15 @@ if __name__ == '__main__':
         result_hist_dict = dict()
         for epoch in range(args.num_epochs):
             train_result = train_epoch(
-                train_dataloader, model, device, optimizer
+                train_dataloader, model, device, optimizer, weights
             )
 
             dev_result = validate_epoch(
-                dev_dataloader, model, device
+                dev_dataloader, model, device, weights
             )
             
             test_result = validate_epoch(
-                test_dataloader, model, device, split="Test"
+                test_dataloader, model, device, weights, split="Test"
             )
             # if we get a better results
             if best_dev_uar < dev_result["uar"]:
