@@ -11,7 +11,7 @@ if sys.platform.startswith("linux") and platform.machine() == "x86_64":
 setup(
     name="peft-ser",
     py_modules=["peft_ser"],
-    version="0.0.3",
+    version="0.0.4",
     description="Parameter Efficient Fine-tuning on Speech Emotion Recognition.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",

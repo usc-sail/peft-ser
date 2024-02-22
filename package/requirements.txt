@@ -2,5 +2,5 @@ numpy
 torch
 tqdm
 more-itertools
-transformers
+transformers==4.30.2
 loralib
