@@ -198,21 +198,13 @@ if __name__ == '__main__':
         # Define the model wrapper
         if args.pretrain_model == "wav2vec2_0":
             # Wav2vec2_0 Wrapper
-            model = Wav2VecWrapper(args).to(device)
+            model = Wav2VecWrapper(args, output_class_num=4).to(device)
         elif args.pretrain_model == "wavlm_plus":
             # WavLM Plus Wrapper
-            model = WavLMWrapper(args).to(device)
+            model = WavLMWrapper(args, output_class_num=4).to(device)
         elif args.pretrain_model in ["whisper_tiny", "whisper_base", "whisper_small", "whisper_medium", "whisper_large"]:
             # Whisper Plus Wrapper
-            model = WhisperWrapper(args).to(device)
-        
-        # Define the downstream models
-        if args.downstream_model == "cnn":
-            # Define the number of class
-            if args.dataset in ["iemocap", "msp-improv", "meld", "iemocap_impro"]: num_class = 4
-            elif args.dataset in ["msp-podcast"]: num_class = 4
-            elif args.dataset in ["crema_d"]: num_class = 4
-            elif args.dataset in ["ravdess"]: num_class = 7
+            model = WhisperWrapper(args, output_class_num=4).to(device)
         
         # Read trainable params
         model_parameters = list(filter(lambda p: p.requires_grad, model.parameters()))
